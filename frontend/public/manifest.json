@@ -1,0 +1,8 @@
+{
+  "short_name": "IssueTracker",
+  "name": "Issue Tracking System",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb"
+}
