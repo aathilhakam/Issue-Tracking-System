@@ -101,6 +101,8 @@ function AdminDashboard({ user, onLogout }) {
   const [filters, setFilters] = useState({status:'', priority:'', issueType:''});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedIssue, setSelectedIssue] = useState(null);
+  const [commentText, setCommentText] = useState('');
 
   useEffect(() => {
     api.get('/admin/issues', { headers: { 'X-User-Id': user.id } })
@@ -131,6 +133,20 @@ function AdminDashboard({ user, onLogout }) {
     } catch (err) { setError(messageFor(err, 'Unable to update ticket status.')); }
   };
 
+  const addComment = async (event) => {
+    event.preventDefault();
+    if (!selectedIssue || !commentText.trim()) return;
+    setError('');
+    try {
+      await api.post(`/admin/issues/${selectedIssue.id}/comments`, { author: user.name, text: commentText }, { headers: { 'X-User-Id': user.id } });
+      const { data } = await api.get('/admin/issues', { headers: { 'X-User-Id': user.id } });
+      setIssues(data);
+      const refreshedIssue = data.find(issue => issue.id === selectedIssue.id);
+      setSelectedIssue(refreshedIssue || selectedIssue);
+      setCommentText('');
+    } catch (err) { setError(messageFor(err, 'Unable to add comment.')); }
+  };
+
   return <div className="tracker">
     <div className="user-bar"><span>Administrator: <strong>{user.name}</strong></span><button className="secondary" onClick={onLogout}>Log out</button></div>
     <div className="admin-banner"><strong>Admin dashboard</strong><span>Read-only overview of issues created by all users</span></div>
@@ -150,9 +166,43 @@ function AdminDashboard({ user, onLogout }) {
         <div className="issue-top"><div><div className="badges"><span className={`priority ${issue.priority?.toLowerCase()}`}>{issue.priority}</span><span>{issue.issueType}</span></div><h3>{issue.title}</h3><p>{issue.description}</p></div><span className={`status ${issue.status?.toLowerCase().replace(/\s+/g,'-')}`}>{issue.status}</span></div>
         <div className="issue-owner"><span className="owner-avatar">{(issue.creatorName || '?').charAt(0).toUpperCase()}</span><div><small>Raised by</small><strong>{issue.creatorName || 'Unknown user'}</strong>{issue.creatorEmail && <span>{issue.creatorEmail}</span>}</div></div>
         <div className="meta"><span>Assignee: {issue.assignee}</span><span>Due: {issue.dueDate}</span></div>
-        <div className="issue-actions"><label className="inline-label">Admin status<select value={issue.status} onChange={e=>updateStatus(issue,e.target.value)}><option>Open</option><option>In Progress</option><option>Resolved</option><option>Closed</option></select></label></div>
+        <div className="issue-actions">
+          <button onClick={() => setSelectedIssue(issue)}>View details</button>
+          <label className="inline-label">Admin status<select value={issue.status} onChange={e=>updateStatus(issue,e.target.value)}><option>Open</option><option>In Progress</option><option>Resolved</option><option>Closed</option></select></label>
+        </div>
       </article>)}</div>}
     </section>
+    {selectedIssue && <div className="modal" role="dialog">
+      <div className="modal-content detail">
+        <button className="close secondary" onClick={() => { setSelectedIssue(null); setCommentText(''); }}>Close</button>
+        <h2>{selectedIssue.title}</h2>
+        <p>{selectedIssue.description}</p>
+        <div className="detail-grid">
+          <span><b>Type</b>{selectedIssue.issueType}</span>
+          <span><b>Priority</b>{selectedIssue.priority}</span>
+          <span><b>Status</b>{selectedIssue.status}</span>
+          <span><b>Assignee</b>{selectedIssue.assignee}</span>
+          <span><b>Due date</b>{selectedIssue.dueDate}</span>
+          <span><b>Created</b>{new Date(selectedIssue.createdAt).toLocaleString()}</span>
+        </div>
+
+        <h3>Comments</h3>
+        <form className="comment-form" onSubmit={addComment}>
+          <textarea required maxLength="1000" placeholder="Add a comment…" value={commentText} onChange={e => setCommentText(e.target.value)} />
+          <button type="submit">Add comment</button>
+        </form>
+        <div className="timeline">
+          {(selectedIssue.comments || []).map((comment, index) => (
+            <div key={`${comment.author}-${comment.createdAt}-${index}`}>
+              <strong>{comment.author}</strong>
+              <small>{new Date(comment.createdAt).toLocaleString()}</small>
+              <p>{comment.text}</p>
+            </div>
+          ))}
+          {!selectedIssue.comments?.length && <p>No comments yet.</p>}
+        </div>
+      </div>
+    </div>}
   </div>;
 }
 

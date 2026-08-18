@@ -10,11 +10,15 @@ import jakarta.validation.constraints.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.example.issuetracker.model.Comment;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -67,6 +71,22 @@ public class AdminController {
             return saved;
         }
         return issue;
+    }
+
+    @PostMapping("/issues/{id}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Comment addComment(@PathVariable String id, @Valid @RequestBody Comment comment,
+                              @RequestHeader("X-User-Id") String userId) {
+        requireAdmin(userId);
+        Issue issue = issues.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Issue not found"));
+
+        comment.setCreatedAt(LocalDateTime.now().toString());
+        issue.addComment(comment);
+        issue.addActivity("Comment added by " + comment.getAuthor());
+        issue.setUpdatedAt(LocalDateTime.now().toString());
+        issues.save(issue);
+        return comment;
     }
 
     private void requireAdmin(String userId) {
